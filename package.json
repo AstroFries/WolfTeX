@@ -23,6 +23,14 @@
       {
         "command": "mmatex.duplicateLineBelow",
         "title": "MmaTex: Duplicate Line Below"
+      },
+      {
+        "command": "mmatex.evaluateLineWithWolfram",
+        "title": "MmaTex: Evaluate Line with WolframScript"
+      },
+      {
+        "command": "mmatex.evaluateLineWithWolframLatex",
+        "title": "MmaTex: Evaluate Line to LaTeX"
       }
     ]
   },

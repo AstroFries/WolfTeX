@@ -1,7 +1,15 @@
 // src/extension.ts
 import * as vscode from 'vscode';
+import * as path from 'path';
+import { WolframKernelService } from './wolframKernelService';
+
+let kernelService: WolframKernelService | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
+    const outputChannel = vscode.window.createOutputChannel('Wolfram Kernel');
+    kernelService = new WolframKernelService(outputChannel);
+    context.subscriptions.push(outputChannel);
+
     // 使用与 package.json 中完全相同的命令名
     let disposableHello = vscode.commands.registerCommand('mmatex.helloWorld', () => {
         vscode.window.showInformationMessage('Hello, VSCode!');
@@ -44,7 +52,125 @@ export function activate(context: vscode.ExtensionContext) {
         });
     });
 
-    context.subscriptions.push(disposableHello, disposableShowCursorLine, disposableDuplicateLineBelow);
+    // 注册新命令：使用 wolframscript 执行当前行内容并插入输出
+    let disposableEvaluateLineWithWolfram = vscode.commands.registerCommand('mmatex.evaluateLineWithWolfram', async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showInformationMessage('No active text editor');
+            return;
+        }
+
+        await evaluateLineWithWolfram(editor, {
+            successMessage: 'Wolfram evaluation inserted.'
+        });
+    });
+
+    // 注册新命令：将 wolframscript 输出转成 LaTeX 并插入
+    let disposableEvaluateLineWithWolframLatex = vscode.commands.registerCommand('mmatex.evaluateLineWithWolframLatex', async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showInformationMessage('No active text editor');
+            return;
+        }
+
+        await evaluateLineWithWolfram(editor, {
+            mode: 'latex',
+            formatOutput: (output, indentation, eol) => formatAsLatexBlock(output, indentation),
+            successMessage: 'Wolfram LaTeX inserted.'
+        });
+    });
+
+    context.subscriptions.push(
+        disposableHello,
+        disposableShowCursorLine,
+        disposableDuplicateLineBelow,
+        disposableEvaluateLineWithWolfram,
+        disposableEvaluateLineWithWolframLatex
+    );
 }
 
-export function deactivate() {}
+export function deactivate() {
+    if (kernelService) {
+        kernelService.dispose();
+    }
+}
+
+type EvaluateLineOptions = {
+    mode?: 'plain' | 'latex';
+    formatOutput?: (output: string, indentation: string, eol: string) => string[];
+    successMessage?: string;
+};
+
+async function evaluateLineWithWolfram(editor: vscode.TextEditor, options?: EvaluateLineOptions) {
+    if (!kernelService) {
+        vscode.window.showErrorMessage('Wolfram kernel service is not initialized.');
+        return;
+    }
+
+    const document = editor.document;
+    const eol = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
+    const lineNumber = editor.selection.active.line;
+    const rawLineText = document.lineAt(lineNumber).text;
+    const indentation = rawLineText.match(/^\s*/)?.[0] ?? '';
+    const code = stripLeadingPercent(rawLineText);
+
+    if (!code) {
+        vscode.window.showWarningMessage('Current line is empty after removing %');
+        return;
+    }
+
+    const cwd = document.uri.scheme === 'file' ? path.dirname(document.uri.fsPath) : undefined;
+
+    try {
+        const result = await kernelService.evaluate(code, options?.mode ?? 'plain', cwd);
+        
+        const formattedLines = options?.formatOutput
+            ? options.formatOutput(result, indentation, eol)
+            : formatAsComments(result, indentation);
+
+        const insertText = `${eol}${formattedLines.join(eol)}`;
+
+        await editor.edit(editBuilder => {
+            const insertPosition = document.lineAt(lineNumber).range.end;
+            editBuilder.insert(insertPosition, insertText);
+        });
+
+        if (options?.successMessage) {
+            vscode.window.showInformationMessage(options.successMessage);
+        }
+    } catch (error: any) {
+        vscode.window.showErrorMessage(`Wolfram error: ${error.message ?? error}`);
+    }
+}
+
+function stripLeadingPercent(text: string): string {
+    return text.replace(/^\s*%+\s*/, '').trim();
+}
+
+function formatAsComments(output: string, indentation: string): string[] {
+    return output.split(/\r?\n/).map(line => `${indentation}% ${line}`);
+}
+
+function formatAsLatexBlock(output: string, indentation: string, _eol?: string): string[] {
+    // 如果输出中已经包含 `$`，认为不需要再包裹 $$，直接以注释插入原始输出
+    if (output.includes('$')) {
+        return formatAsComments(output, indentation);
+    }
+
+    const lines = output.split(/\r?\n/);
+    if (lines.length === 0) {
+        return [];
+    }
+
+    // 单行情况： % $ content $
+    if (lines.length === 1) {
+        return [`${indentation}% $ ${lines[0]} $`];
+    }
+    const result: string[] = [];
+    result.push(`${indentation}% $ ${lines[0]}`);
+    for (let i = 1; i < lines.length - 1; i++) {
+        result.push(`${indentation}% ${lines[i]}`);
+    }
+    result.push(`${indentation}% ${lines[lines.length - 1]} $`);
+    return result;
+}

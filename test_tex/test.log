@@ -1,4 +1,4 @@
-This is XeTeX, Version 3.14159265-2.6-0.999991 (TeX Live 2019/Debian) (preloaded format=xelatex 2025.6.17)  7 DEC 2025 14:30
+This is XeTeX, Version 3.14159265-2.6-0.999991 (TeX Live 2019/Debian) (preloaded format=xelatex 2025.6.17)  7 DEC 2025 15:38
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -496,7 +496,7 @@ LaTeX Info: Redefining \] on input line 2860.
 LaTeX Warning: Unused global option(s):
     [titlepage=false].
 
-No file test.aux.
+(./test.aux)
 \openout1 = `test.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 9.
@@ -515,7 +515,7 @@ LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 9.
 LaTeX Font Info:    ... okay on input line 9.
 LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 9.
 LaTeX Font Info:    ... okay on input line 9.
-ABD: EverySelectfont initializing macros
+ ABD: EverySelectfont initializing macros
 LaTeX Info: Redefining \selectfont on input line 9.
 
 Package fontspec Info: Adjusting the maths setup (use [no-math] to avoid
@@ -588,14 +588,14 @@ Overfull \hbox (0.78674pt too wide) detected at line 44
 
 [1
 
-] [2] [3] [4] (./test.aux) ) 
+] [2] [3] [4] [5] (./test.aux) ) 
 Here is how much of TeX's memory you used:
- 17702 strings out of 481370
- 421395 string characters out of 5926567
+ 17704 strings out of 481370
+ 421413 string characters out of 5926567
  677227 words of memory out of 5000000
  34413 multiletter control sequences out of 15000+600000
  539832 words of font info for 72 fonts, out of 8000000 for 9000
  264 hyphenation exceptions out of 8191
  60i,10n,72p,411b,259s stack positions out of 5000i,500n,10000p,200000b,80000s
 
-Output written on test.pdf (4 pages).
+Output written on test.pdf (5 pages).
