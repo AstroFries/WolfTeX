@@ -1,0 +1,110 @@
+\documentclass[a4paper, 12pt, titlepage = false]{article}
+\usepackage{ctex} 
+\usepackage{tikz}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\title{HW12}
+\author{Astrofries}
+\date{\today}
+\begin{document}
+    \maketitle
+    \section{}
+    \[\mathbb E_{p_1,p_2}(X) = 1\cdot p_1 + 2\cdot p_2 + 3(1-p_1-p_2) = 3 - 2p_1 - p_2 \]
+    \[\mathbb E_{p_1,p_2}(X^2) = 1^2\cdot p_1 + 2^2\cdot p_2 + 3^2 (1-p_1-p_2) = 9 - 8p_1 - 5p_2\]
+    根据矩估计法，将样本的$\mathbb E$认为是的$\mathbb E_{p_1,p_2}$联立得知:
+    \[\begin{pmatrix}
+        \hat p_1\\
+        \hat p_2
+    \end{pmatrix} = 
+    \frac{1}{2} 
+    \begin{pmatrix}
+        -5&1\\
+        8 &-2
+    \end{pmatrix}
+    \begin{pmatrix}
+        \mathbb E(X)\\
+        \mathbb E(X^2)
+    \end{pmatrix} + 
+    \begin{pmatrix}
+        3\\
+        -3
+    \end{pmatrix}\]
+    %
+    \section{}
+    令$\theta_1 = \mu,\theta_2 = \sigma^2$
+    \[\mathbb E_{\theta_1,\theta_2}(a\overline{X_1} + (1-a)\overline{X_2}) = a\mathbb E_{\theta_1,\theta_2}(\overline{X_1})+(1-a)\mathbb E_{\theta_1,\theta_2}(\overline{X_2}) = \theta_1\]
+    因此其是无偏估计；
+    另外:
+    \begin{align*}
+        \mathbb D_{\theta_1,\theta_2}(a\overline{X_1}+(1-a)\overline{X_2}) &= \mathbb E_{\theta_1,\theta_2}(a\overline{X_1-\mu}+(1-a)\overline{X_2-\mu})^2\\
+        &= \mathbb E_{\theta_1,\theta_2}(a\overline{X_1-\mu})^2+\mathbb E_{\theta_1,\theta_2}(a(1-a)\overline{X_1-\mu}\ \overline{X_2-\mu})\\
+        &\quad +\mathbb E_{\theta_1,\theta_2}((1-a)\overline{X_2-\mu})^2\\
+        &= a^2 \frac{\sigma^2}{n_1} +(1-a)^2\frac{\sigma^2}{n_2} \\
+        &= \sigma^2\left[\left( \frac{1}{n_1} +\frac{1}{n_2} \right)a^2 -\frac{2}{n_2}a+\frac{1}{n_2}   \right]
+    \end{align*}
+    在$a = \dfrac{n_1}{n_1+n_2}$时取到最小。 
+    \section{}
+    \subsection{}
+    \[\mathbb E_{\theta}(X) = \int_0^1 xf(x)\mathrm dx = \int_0^\theta \frac{x}{2\theta}\mathrm dx + \int_{\theta}^1\frac{x}{2(1-\theta)} \mathrm dx = \frac{1}{2} \theta + \frac{1}{4} \]
+    于是
+    \[\hat \theta = 2\mathbb E(X) - \frac{1}{2} \]
+    %$\hat \theta = 2\mathbb E(X) - \frac{1}{2} $
+    \subsection{}
+    \[\mathbb E_{\theta}(X_k^2) = \int_{0}^{\theta}\frac{x^2}{2\theta}\mathrm dx +\int_{\theta}^{1}\frac{x^2}{2(1-\theta)}\mathrm dx =\frac{1}{6} (2\theta^2+\theta+1)\]
+    \begin{align*}
+        \mathbb E_{\theta}(\hat{\theta}(X)) &= \mathbb E_{\theta}(4\overline X^2) \\
+        &= \frac{4}{n^2} \mathbb E_{\theta}\left[\left(\sum_{k=1}^{n}X_k\right)^2\right]\\
+        &= \frac{4}{n^2} \mathbb E_{\theta}\left[\sum_{k=1}^{n}X_k^2 + \sum_{1\le k<m\le n}X_mX_n\right]\\
+        &= \frac{4}{n^2} \left[n\cdot \frac{1}{6} (2\theta^2 + \theta + 1) + \frac{n(n-1)}{2}\left(\frac{1}{2} \theta + \frac{1}{4} \right)^2 \right]\neq \theta^2
+    \end{align*}
+    因此是有偏估计。
+    \section{}
+    \subsection{}
+    矩估计:
+    \[\overline X = \frac{1}{2}\theta\Rightarrow \hat \theta = 2\overline X \]\par
+    最大似然估计:\\
+    只需要让$[\theta,\theta +|\theta| = 0]$区间长度最小且包裹所有样本点即可，因此$\hat{\theta} = \min_{1\le k \le n}{X_k}$
+    \subsection{}
+    矩估计:
+    \[\overline X = \frac{3}{2} \theta \Rightarrow \hat{\theta} = \frac{2}{3} \overline X\]\par
+    最大似然估计:
+    还是让$[\theta,\theta +|\theta| = 2\theta]$区间最小且包裹所有样本点,于是$\hat\theta = \frac{1}{2} \max X$
+    \section{}
+    \subsection{}
+    矩估计:
+    \[\mathbb E_{\theta}(X) = \theta + \sigma\Rightarrow \hat{\theta} = \overline X - \sigma\]\par
+    最大似然估计:\\
+    只考虑$\theta>\min X$的情况(反之似然函数=0)
+    \[L(\theta) = \prod_{k=1}^{n}\frac{1}{\sigma}\exp(-(X_k-\theta)/\sigma)= \exp(n\theta/\sigma)\prod_{k=1}^{n}\frac{1}{\sigma}\exp(-X_k/\sigma)\]
+    于是应该取$\hat \theta = \min X$
+    \subsection{}
+    矩估计:
+    \[\mathbb E_{\theta} (\overline X - \sigma) = \sum_{k=1}^{n}\mathbb E_{\theta}(X_k) - \sigma = \theta \]
+    所以是无偏的。\par
+    最大似然估计：\\
+    假设
+    \[f_{\min_{1\le i\le k}X_i} (t) = \frac{k}{\sigma}\exp(-k(t-\theta)/\sigma) \]
+    $k=1$成立。$k>1$:
+    \begin{align*}
+        f_{\min_{1\le i\le k}X_i} (t) &= k f_{X_k}(t)\int_t^{+\infty}f_{\min_{1\le i\le k-1}X_i} (s)\mathrm ds \\
+        &= \frac{k}{\sigma}\exp(-(t-\theta)/\sigma)\cdot \exp(-(k-1)(t-\theta)/\sigma)\\
+        &= \frac{k}{\sigma}\exp(-k(t-\theta)/\sigma)\\
+    \end{align*}
+    第一行等式右边的k意为$1\sim k$中任意一个都可能最小，但他们是等概率的，所以这里只计算$X_k$最小的概率密度分布，然后乘k得到总概率密度分布。
+    由数学归纳法知假设对任意k成立，因此
+    \[\mathbb E_{\theta}(\min_{1\le k \le n}X_k) = \theta + \frac{\sigma}{n} \neq \theta\]
+    所以最大似然估计是有偏的，应该修正为$\hat \theta = \min_{1\le k \le n}X_k - \frac{\sigma}{n}$ 才为无偏。
+    \section{}
+    \subsection{}
+    
+    显然所有x的概率都关于$\mu$单调增，于是似然函数也是单增的(在$mu\le \min X$时)，于是最大似然估计给出
+    \[\hat \mu = \min_{1\le k \le n}X_k\]
+    仿照5知道其是有偏的，应该修正为$\hat \mu ^{**} = \min_{1\le k \le n}X_k - \frac{1}{n}$才无偏。
+    \subsection{} 
+    推导矩估计和证明其为无偏估计的过程与5中相同。\par
+    由于$\hat\mu^{**}-\mu$服从$\mathrm{Exp}(n)$,
+    \[\mathrm{Var} \hat \mu^{**} = \frac{1}{n^2} ;\mathrm{Var} \hat \mu = \frac{1}{n} \mathrm{Var} X_1 = \frac{1}{n} \]
+    因此$\hat \mu^{**}$更有效
+\end{document}
+
+%49f98e11-73f8-41ae-8d18-7833ad2e329f
