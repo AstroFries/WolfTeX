@@ -9,10 +9,6 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onCommand:mmatex.showCursorLine",
-    "onCommand:mmatex.helloWorld"
-  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
@@ -23,6 +19,10 @@
       {
         "command": "mmatex.showCursorLine",
         "title": "MmaTex: Show Cursor Line"
+      },
+      {
+        "command": "mmatex.duplicateLineBelow",
+        "title": "MmaTex: Duplicate Line Below"
       }
     ]
   },

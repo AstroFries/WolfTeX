@@ -20,7 +20,31 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showInformationMessage(lineText);
     });
 
-    context.subscriptions.push(disposableHello, disposableShowCursorLine);
+    // 注册新命令：复制当前行到下一行（类似 Alt+Shift+Down）
+    let disposableDuplicateLineBelow = vscode.commands.registerCommand('mmatex.duplicateLineBelow', () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+            vscode.window.showInformationMessage('No active text editor');
+            return;
+        }
+
+        const document = editor.document;
+        const eol = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
+        const lineNumbers = Array.from(new Set(editor.selections.map(selection => selection.active.line))).sort((a, b) => b - a);
+
+        if (lineNumbers.length === 0) {
+            return;
+        }
+
+        editor.edit(editBuilder => {
+            for (const lineNumber of lineNumbers) {
+                const lineText = document.lineAt(lineNumber).text;
+                editBuilder.insert(document.lineAt(lineNumber).range.end, eol + lineText);
+            }
+        });
+    });
+
+    context.subscriptions.push(disposableHello, disposableShowCursorLine, disposableDuplicateLineBelow);
 }
 
 export function deactivate() {}
