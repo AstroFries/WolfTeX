@@ -7,16 +7,16 @@ let kernelService: WolframKernelService | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
     const outputChannel = vscode.window.createOutputChannel('Wolfram Kernel');
-    kernelService = new WolframKernelService(outputChannel);
+    kernelService = new WolframKernelService(context.extensionPath, outputChannel);
     context.subscriptions.push(outputChannel);
 
     // 使用与 package.json 中完全相同的命令名
-    let disposableHello = vscode.commands.registerCommand('mmatex.helloWorld', () => {
+    let disposableHello = vscode.commands.registerCommand('wolftex.helloWorld', () => {
         vscode.window.showInformationMessage('Hello, VSCode!');
     });
 
     // 注册新命令：显示光标所在行的内容
-    let disposableShowCursorLine = vscode.commands.registerCommand('mmatex.showCursorLine', () => {
+    let disposableShowCursorLine = vscode.commands.registerCommand('wolftex.showCursorLine', () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
             vscode.window.showInformationMessage('No active text editor');
@@ -29,7 +29,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // 注册新命令：复制当前行到下一行（类似 Alt+Shift+Down）
-    let disposableDuplicateLineBelow = vscode.commands.registerCommand('mmatex.duplicateLineBelow', () => {
+    let disposableDuplicateLineBelow = vscode.commands.registerCommand('wolftex.duplicateLineBelow', () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
             vscode.window.showInformationMessage('No active text editor');
@@ -53,7 +53,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // 注册新命令：使用 wolframscript 执行当前行内容并插入输出
-    let disposableEvaluateLineWithWolfram = vscode.commands.registerCommand('mmatex.evaluateLineWithWolfram', async () => {
+    let disposableEvaluateLineWithWolfram = vscode.commands.registerCommand('wolftex.evaluateLineWithWolfram', async () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
             vscode.window.showInformationMessage('No active text editor');
@@ -66,7 +66,7 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // 注册新命令：将 wolframscript 输出转成 LaTeX 并插入
-    let disposableEvaluateLineWithWolframLatex = vscode.commands.registerCommand('mmatex.evaluateLineWithWolframLatex', async () => {
+    let disposableEvaluateLineWithWolframLatex = vscode.commands.registerCommand('wolftex.evaluateLineWithWolframLatex', async () => {
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
             vscode.window.showInformationMessage('No active text editor');

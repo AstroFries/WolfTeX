@@ -1,7 +1,7 @@
 {
-  "name": "mmatex",
-  "displayName": "MmaTex",
-  "description": "Extension for run Wolfram Mathematica code in LaTeX Code.",
+  "name": "wolftex",
+  "displayName": "WolfTeX",
+  "description": "Extension for run Wolfram Mathematica code in LaTeX code.",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.95.0"
@@ -13,24 +13,24 @@
   "contributes": {
     "commands": [
       {
-        "command": "mmatex.helloWorld",
-        "title": "MmaTex: Hello World"
+        "command": "wolftex.helloWorld",
+        "title": "WolfTeX: Hello World"
       },
       {
-        "command": "mmatex.showCursorLine",
-        "title": "MmaTex: Show Cursor Line"
+        "command": "wolftex.showCursorLine",
+        "title": "WolfTeX: Show Cursor Line"
       },
       {
-        "command": "mmatex.duplicateLineBelow",
-        "title": "MmaTex: Duplicate Line Below"
+        "command": "wolftex.duplicateLineBelow",
+        "title": "WolfTeX: Duplicate Line Below"
       },
       {
-        "command": "mmatex.evaluateLineWithWolfram",
-        "title": "MmaTex: Evaluate Line with WolframScript"
+        "command": "wolftex.evaluateLineWithWolfram",
+        "title": "WolfTeX: Evaluate Line with WolframScript"
       },
       {
-        "command": "mmatex.evaluateLineWithWolframLatex",
-        "title": "MmaTex: Evaluate Line to LaTeX"
+        "command": "wolftex.evaluateLineWithWolframLatex",
+        "title": "WolfTeX: Evaluate Line to LaTeX"
       }
     ]
   },
@@ -51,6 +51,7 @@
     "@types/vscode": "^1.106.1",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
+    "copy-webpack-plugin": "^13.0.1",
     "eslint": "^9.39.1",
     "ts-loader": "^9.5.4",
     "typescript": "^5.9.3",
