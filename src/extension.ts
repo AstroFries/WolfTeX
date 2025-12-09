@@ -80,12 +80,127 @@ export function activate(context: vscode.ExtensionContext) {
         });
     });
 
+    // Register Completion Item Provider
+    const completionProvider = vscode.languages.registerCompletionItemProvider(
+        ['latex', 'tex'],
+        {
+            provideCompletionItems(document: vscode.TextDocument, position: vscode.Position) {
+                // Only trigger if the cursor is inside a comment (after an unescaped %)
+                const lineText = document.lineAt(position.line).text;
+                const prefix = lineText.substring(0, position.character);
+                let isComment = false;
+                for (let i = 0; i < prefix.length; i++) {
+                    if (prefix[i] === '\\') {
+                        i++; // Skip escaped character
+                        continue;
+                    }
+                    if (prefix[i] === '%') {
+                        isComment = true;
+                        break;
+                    }
+                }
+
+                if (!isComment) {
+                    return undefined;
+                }
+
+                if (!kernelService) {
+                    return undefined;
+                }
+
+                return kernelService.getSystemNames().then(names => {
+                    return names.map(name => {
+                        const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Function);
+                        item.detail = "Wolfram System Name";
+                        return item;
+                    });
+                });
+            }
+        }
+    );
+
+    // Register Signature Help Provider
+    const signatureProvider = vscode.languages.registerSignatureHelpProvider(
+        ['latex', 'tex'],
+        {
+            async provideSignatureHelp(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken, context: vscode.SignatureHelpContext) {
+                if (!kernelService) {
+                    return undefined;
+                }
+
+                // 1. Check if inside comment
+                const lineText = document.lineAt(position.line).text;
+                const prefix = lineText.substring(0, position.character);
+                let isComment = false;
+                for (let i = 0; i < prefix.length; i++) {
+                    if (prefix[i] === '\\') {
+                        i++; // Skip escaped character
+                        continue;
+                    }
+                    if (prefix[i] === '%') {
+                        isComment = true;
+                        break;
+                    }
+                }
+                if (!isComment) return undefined;
+
+                // 2. Find the function name by walking backwards
+                // We need to find the nearest unclosed '['
+                let balance = 0;
+                let functionName = "";
+                
+                // Scan backwards from cursor
+                for (let i = position.character - 1; i >= 0; i--) {
+                    const char = lineText[i];
+                    if (char === ']') {
+                        balance++;
+                    } else if (char === '[') {
+                        if (balance > 0) {
+                            balance--;
+                        } else {
+                            // Found the opening bracket!
+                            // Now get the word before it
+                            const textBefore = lineText.substring(0, i);
+                            const match = textBefore.match(/([a-zA-Z0-9`]+)\s*$/);
+                            if (match) {
+                                functionName = match[1];
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                if (!functionName) {
+                    return undefined;
+                }
+
+                // 3. Fetch usage
+                const usage = await kernelService.getFunctionUsage(functionName);
+                if (!usage) {
+                    return undefined;
+                }
+
+                const signatureHelp = new vscode.SignatureHelp();
+                signatureHelp.signatures = [
+                    new vscode.SignatureInformation(functionName, new vscode.MarkdownString(usage))
+                ];
+                signatureHelp.activeSignature = 0;
+                signatureHelp.activeParameter = 0;
+
+                return signatureHelp;
+            }
+        },
+        '[', ','
+    );
+
     context.subscriptions.push(
         disposableHello,
         disposableShowCursorLine,
         disposableDuplicateLineBelow,
         disposableEvaluateLineWithWolfram,
-        disposableEvaluateLineWithWolframLatex
+        disposableEvaluateLineWithWolframLatex,
+        completionProvider,
+        signatureProvider
     );
 }
 

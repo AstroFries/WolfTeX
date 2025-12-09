@@ -46,28 +46,108 @@ Handler[assoc_] := Module[{client, data, parts, requestStr, json, code, mode, cw
             If[FailureQ[json],
                 result = "Error: Invalid JSON";
             ,
-                code = "code" /. json;
-                mode = "mode" /. json;
-                cwd = "cwd" /. json;
-                
-                (* Execute in Global context *)
-                result = Block[{$Context = "Global`"},
-                    Module[{val},
-                        If[StringQ[cwd] && cwd =!= "", SetDirectory[cwd]];
-                        val = Check[ToExpression[code, InputForm], $Failed];
-                        
-                        If[val === $Failed,
-                            "Error: Evaluation failed",
-                            If[val === Null,
-                                "",
-                                If[mode === "latex",
-                                    ToString[TeXForm[val]],
-                                    ToString[val, InputForm]
+                type = "type" /. json;
+
+                If[type === "completion",
+                    result = Names["System`*"];
+                ,
+                If[type === "usage",
+                    name = "name" /. json;
+                    result = "";
+                    If[StringQ[name] && Length[Names[name]] > 0,
+                        (* Get usage message *)
+                        result = Quiet[MessageName[Evaluate[ToExpression[name]], "usage"]];
+                        If[Head[result] === MessageName, 
+                            result = ""
+                        ,
+                            (* Clean up Linear Syntax string to Plain Text *)
+                            
+                            (* 1. Remove Private Use Characters *)
+                            result = StringReplace[result, RegularExpression["[\\x{E000}-\\x{F8FF}]"] -> ""];
+                            result = StringReplace[result, {"\!\(\*" -> "", "\!\(" -> ""}];
+
+                            (* 2. Protect semantic commas *)
+                            result = StringReplace[result, "\",\"" -> "SEMANTICCOMMA"];
+                            
+                            (* 3. Remove Formatting Boxes (Pass 1) *)
+                            result = StringReplace[result, {
+                                "DisplayForm[" -> "",
+                                "RowBox[{" -> "", "}]" -> "",
+                                "StyleBox[" -> "", 
+                                RegularExpression[",\\s*\"T[A-Z]\"\\]"] -> ""
+                            }];
+                            
+                            (* 4. Handle Subscripts/Superscripts (Pass 2) *)
+                            result = StringReplace[result, RegularExpression["SubscriptBox\\[\\s*\"([^\"]+)\"\\s*,\\s*\"([^\"]+)\"\\s*\\]"] -> "$1_$2"];
+                            result = StringReplace[result, RegularExpression["SuperscriptBox\\[\\s*\"([^\"]+)\"\\s*,\\s*\"([^\"]+)\"\\s*\\]"] -> "$1^$2"];
+                            result = StringReplace[result, RegularExpression["SubsuperscriptBox\\[\\s*\"([^\"]+)\"\\s*,\\s*\"([^\"]+)\"\\s*,\\s*\"([^\"]+)\"\\s*\\]"] -> "$1_$2^$3"];
+
+                            (* 5. Remove Remaining Boxes and Artifacts (Pass 3) *)
+                            result = StringReplace[result, {
+                                "SubscriptBox[" -> "Subscript[",
+                                "SuperscriptBox[" -> "Superscript[",
+                                "SubsuperscriptBox[" -> "Subsuperscript[",
+                                "FractionBox[" -> "Fraction[",
+                                "SqrtBox[" -> "Sqrt[",
+                                "UnderoverscriptBox[" -> "Underoverscript[",
+                                "OverscriptBox[" -> "Overscript[",
+                                "UnderscriptBox[" -> "Underscript[",
+                                "\"" -> "",          
+                                "," -> "",           
+                                "\[Integral]" -> "Int",
+                                "\[DifferentialD]" -> "d",
+                                "\[Element]" -> " in ",
+                                "\[Ellipsis]" -> "..."
+                            }];
+                            
+                            (* 6. Restore semantic tokens *)
+                            result = StringReplace[result, "SEMANTICCOMMA" -> ","];
+                            
+                            (* 7. Normalize whitespace, but preserve newlines *)
+                            result = StringReplace[result, "\r\n" -> "\n"];
+                            result = StringReplace[result, "\r" -> "\n"];
+                            result = StringReplace[result, "\t" -> " "];
+                            result = StringReplace[result, "\:00a0" -> " "];
+                            result = FixedPoint[StringReplace[#, "  " -> " "] &, result];
+                            result = FixedPoint[StringReplace[#, "\n\n" -> "\n"] &, result];
+                            
+                            (* 8. Ensure newlines before usage definitions *)
+                            result = StringReplace[result, " " <> name <> " [" -> "\n" <> name <> " ["];
+                            result = StringReplace[result, ". " <> name <> " [" -> ".\n" <> name <> " ["];
+                            
+                            (* Cleanup *)
+                            result = FixedPoint[StringReplace[#, "\n\n" -> "\n"] &, result];
+                            result = StringReplace[result, "\n " -> "\n"];
+
+                            (* 9. Final Trim *)
+                            result = StringTrim[result];
+                        ];
+                    ];
+                ,
+                    code = "code" /. json;
+                    mode = "mode" /. json;
+                    cwd = "cwd" /. json;
+                    
+                    (* Execute in Global context *)
+                    result = Block[{$Context = "Global`"},
+                        Module[{val},
+                            If[StringQ[cwd] && cwd =!= "", SetDirectory[cwd]];
+                            val = Check[ToExpression[code, InputForm], $Failed];
+                            
+                            If[val === $Failed,
+                                "Error: Evaluation failed",
+                                If[val === Null,
+                                    "",
+                                    If[mode === "latex",
+                                        ToString[TeXForm[val]],
+                                        ToString[val, InputForm]
+                                    ]
                                 ]
                             ]
                         ]
-                    ]
+                    ];
                 ];
+            ];
             ];
             
             (* Send response as JSON string + newline *)
@@ -89,14 +169,3 @@ Print["[Kernel] Ready."];
 While[True, Pause[1]];
 
 End[];
-
-listener = SocketListen[server, Handler];
-
-If[FailureQ[listener],
-    Print["[Kernel] SocketListen failed."]; Exit[1];
-];
-
-Print["[Kernel] Ready."];
-
-(* Keep alive *)
-While[True, Pause[1]];

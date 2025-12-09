@@ -12,9 +12,13 @@ export class WolframKernelService {
     private disposed = false;
     private outputChannel?: OutputChannel;
 
+    private systemNames: string[] = [];
+
     constructor(extensionPath: string, outputChannel?: OutputChannel) {
         this.outputChannel = outputChannel;
-        this.initPromise = this.startKernel(extensionPath);
+        this.initPromise = this.startKernel(extensionPath).then(() => {
+            this.getSystemNames().catch(err => this.error(`Failed to fetch system names: ${err}`));
+        });
     }
 
     private log(message: string) {
@@ -84,7 +88,34 @@ export class WolframKernelService {
         });
     }
 
-    async evaluate(code: string, mode: WolframEvaluationMode, cwd?: string): Promise<string> {
+    async getSystemNames(): Promise<string[]> {
+        if (this.systemNames.length > 0) {
+            return this.systemNames;
+        }
+        try {
+            const result = await this.sendRequest({ type: 'completion' });
+            if (Array.isArray(result)) {
+                this.systemNames = result;
+                this.log(`Fetched ${result.length} system names for completion.`);
+                return result;
+            }
+        } catch (e) {
+            this.error(`Failed to fetch system names: ${e}`);
+        }
+        return [];
+    }
+
+    async getFunctionUsage(name: string): Promise<string> {
+        try {
+            const result = await this.sendRequest({ type: 'usage', name });
+            return typeof result === 'string' ? result : "";
+        } catch (e) {
+            this.error(`Failed to fetch usage for ${name}: ${e}`);
+            return "";
+        }
+    }
+
+    private async sendRequest(requestObj: any): Promise<any> {
         if (this.disposed) {
             throw new Error('Wolfram kernel service has been disposed.');
         }
@@ -99,11 +130,9 @@ export class WolframKernelService {
             const socket = new net.Socket();
             
             socket.connect(this.port!, '127.0.0.1', () => {
-                this.log(`Connected to kernel on port ${this.port}`);
                 // Prepare request (Newline Delimited JSON)
-                const request = JSON.stringify({ code, mode, cwd: cwd || '' }) + '\n';
+                const request = JSON.stringify(requestObj) + '\n';
                 socket.write(request);
-                this.log(`Sent request: ${code.substring(0, 50)}...`);
             });
 
             let responseBuffer = '';
@@ -118,11 +147,7 @@ export class WolframKernelService {
                     const responseStr = parts[0];
                     
                     try {
-                        // Parse the JSON response
-                        // The response from kernel is a JSON string representing the result string
-                        // e.g. "Result String"
                         const result = JSON.parse(responseStr);
-                        this.log(`Response received: ${result.substring(0, 50)}...`);
                         socket.end();
                         resolve(result);
                     } catch (e: any) {
@@ -137,6 +162,11 @@ export class WolframKernelService {
                 reject(err);
             });
         });
+    }
+
+    async evaluate(code: string, mode: WolframEvaluationMode, cwd?: string): Promise<string> {
+        this.log(`Evaluating: ${code.substring(0, 50)}...`);
+        return this.sendRequest({ type: 'evaluate', code, mode, cwd: cwd || '' });
     }
 
     dispose() {

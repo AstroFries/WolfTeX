@@ -2,7 +2,11 @@
   "name": "wolftex",
   "displayName": "WolfTeX",
   "description": "Extension for run Wolfram Mathematica code in LaTeX code.",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "activationEvents": [
+    "onLanguage:latex",
+    "onLanguage:tex"
+  ],
   "engines": {
     "vscode": "^1.95.0"
   },
