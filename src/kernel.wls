@@ -127,19 +127,45 @@ Handler[assoc_] := Module[{client, data, parts, requestStr, json, code, mode, cw
                     code = "code" /. json;
                     mode = "mode" /. json;
                     cwd = "cwd" /. json;
+                    filename = "filename" /. json;
                     
                     (* Execute in Global context *)
                     result = Block[{$Context = "Global`"},
                         Module[{val},
                             If[StringQ[cwd] && cwd =!= "", SetDirectory[cwd]];
                             val = Check[ToExpression[code, InputForm], $Failed];
-                            
+
                             If[val === $Failed,
                                 "Error: Evaluation failed",
                                 If[val === Null,
                                     "",
                                     If[mode === "latex",
-                                        ToString[TeXForm[val]],
+                                        (* If evaluation produced a Graphics-like object, export it to a file
+                                           in the current working directory and return a LaTeX includegraphics snippet. *)
+                                        If[MemberQ[{Graphics, Graphics3D, GraphicsComplex, GraphicsRow, Image}, Head[val]],
+                                            Module[{uuid, fname, exportOK, imgDir, relPath},
+                                                uuid = CreateUUID[];
+                                                
+                                                (* Determine image directory: wolf_image/filename_without_ext/ *)
+                                                imgDir = FileNameJoin[{"wolf_image", FileBaseName[filename]}];
+                                                
+                                                (* Create directory if it doesn't exist *)
+                                                If[!DirectoryQ[imgDir], CreateDirectory[imgDir, CreateIntermediateDirectories -> True]];
+                                                
+                                                fname = FileNameJoin[{imgDir, "plot_" <> uuid <> ".png"}];
+                                                relPath = fname; (* Since we are in cwd, this relative path is correct for LaTeX *)
+                                                
+                                                exportOK = Quiet[Check[Export[fname, val, ImageResolution -> 150], $Failed]];
+                                                If[exportOK === $Failed,
+                                                    (* Fallback to TeXForm if export failed *)
+                                                    ToString[TeXForm[val]],
+                                                    (* Return a LaTeX includegraphics command pointing to the file name (relative) *)
+                                                    "\\includegraphics{" <> relPath <> "}"
+                                                ]
+                                            ],
+                                            (* Not a graphics object: fall back to TeXForm *)
+                                            ToString[TeXForm[val]]
+                                        ],
                                         ToString[val, InputForm]
                                     ]
                                 ]

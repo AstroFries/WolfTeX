@@ -43,7 +43,8 @@ export class WolframKernelService {
             this.log(`Starting kernel server from: ${scriptPath}`);
 
             this.process = spawn('wolframscript', ['-f', scriptPath], {
-                stdio: ['ignore', 'pipe', 'pipe']
+                stdio: ['ignore', 'pipe', 'pipe'],
+                env: { ...process.env, QT_QPA_PLATFORM: 'offscreen' }
             });
 
             if (!this.process.stdout) {
@@ -164,9 +165,9 @@ export class WolframKernelService {
         });
     }
 
-    async evaluate(code: string, mode: WolframEvaluationMode, cwd?: string): Promise<string> {
+    async evaluate(code: string, mode: WolframEvaluationMode, cwd?: string, filename?: string): Promise<string> {
         this.log(`Evaluating: ${code.substring(0, 50)}...`);
-        return this.sendRequest({ type: 'evaluate', code, mode, cwd: cwd || '' });
+        return this.sendRequest({ type: 'evaluate', code, mode, cwd: cwd || '', filename: filename || '' });
     }
 
     dispose() {

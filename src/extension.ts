@@ -235,9 +235,10 @@ async function evaluateLineWithWolfram(editor: vscode.TextEditor, options?: Eval
     }
 
     const cwd = document.uri.scheme === 'file' ? path.dirname(document.uri.fsPath) : undefined;
+    const filename = document.uri.scheme === 'file' ? path.basename(document.uri.fsPath) : undefined;
 
     try {
-        const result = await kernelService.evaluate(code, options?.mode ?? 'plain', cwd);
+        const result = await kernelService.evaluate(code, options?.mode ?? 'plain', cwd, filename);
         
         const formattedLines = options?.formatOutput
             ? options.formatOutput(result, indentation, eol)
