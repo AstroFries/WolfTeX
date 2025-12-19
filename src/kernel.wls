@@ -2,6 +2,8 @@
 (* Switch to a private context to protect kernel variables from Clear["Global`*"] *)
 Begin["MMATex`Private`"];
 
+Off[General::stop]; (* Prevent suppression of repeated error messages *)
+
 Print["[Kernel] Starting Text Protocol Server..."];
 $server = SocketOpen[0]; 
 

@@ -7,8 +7,45 @@ let kernelService: WolframKernelService | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
     const outputChannel = vscode.window.createOutputChannel('Wolfram Kernel');
-    kernelService = new WolframKernelService(context.extensionPath, outputChannel);
+    
+    // Load configuration
+    const config = vscode.workspace.getConfiguration('wolftex');
+    const wolframPath = config.get<string>('wolframPath');
+    const imageDirectory = config.get<string>('imageDirectory');
+    const imageResolution = config.get<number>('imageResolution');
+
+    kernelService = new WolframKernelService(context.extensionPath, outputChannel, {
+        wolframPath,
+        imageDirectory,
+        imageResolution
+    });
     context.subscriptions.push(outputChannel);
+
+    // Register configuration change listener
+    context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
+        if (e.affectsConfiguration('wolftex')) {
+            const newConfig = vscode.workspace.getConfiguration('wolftex');
+            kernelService?.updateConfig({
+                wolframPath: newConfig.get<string>('wolframPath'),
+                imageDirectory: newConfig.get<string>('imageDirectory'),
+                imageResolution: newConfig.get<number>('imageResolution')
+            });
+        }
+    }));
+
+    // Register restart command
+    context.subscriptions.push(vscode.commands.registerCommand('wolftex.restartKernel', async () => {
+        if (kernelService) {
+            await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Notification,
+                title: "Restarting Wolfram Kernel...",
+                cancellable: false
+            }, async () => {
+                await kernelService!.restart();
+            });
+            vscode.window.showInformationMessage('Wolfram Kernel restarted.');
+        }
+    }));
 
     // 使用与 package.json 中完全相同的命令名
     let disposableHello = vscode.commands.registerCommand('wolftex.helloWorld', () => {
@@ -238,8 +275,19 @@ async function evaluateLineWithWolfram(editor: vscode.TextEditor, options?: Eval
     const filename = document.uri.scheme === 'file' ? path.basename(document.uri.fsPath) : undefined;
 
     try {
-        const result = await kernelService.evaluate(code, options?.mode ?? 'plain', cwd, filename);
+        const result = await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: "Wolfram Kernel: Evaluating...",
+            cancellable: false
+        }, async () => {
+            if (!kernelService) { throw new Error("Kernel service not initialized"); }
+            return await kernelService.evaluate(code, options?.mode ?? 'plain', cwd, filename);
+        });
         
+        if (result.startsWith("Error:")) {
+            vscode.window.showErrorMessage("Wolfram Evaluation Failed: " + result.substring(6).trim());
+        }
+
         const formattedLines = options?.formatOutput
             ? options.formatOutput(result, indentation, eol)
             : formatAsComments(result, indentation);

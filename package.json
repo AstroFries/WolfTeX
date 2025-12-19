@@ -36,7 +36,32 @@
         "command": "wolftex.evaluateLineWithWolframLatex",
         "title": "WolfTeX: Evaluate Line to LaTeX"
       }
-    ]
+      ,
+      {
+        "command": "wolftex.restartKernel",
+        "title": "WolfTeX: Restart Kernel"
+      }
+    ],
+    "configuration": {
+      "title": "WolfTeX",
+      "properties": {
+        "wolftex.wolframPath": {
+          "type": "string",
+          "default": "wolframscript",
+          "description": "Path to the wolframscript executable."
+        },
+        "wolftex.image.directory": {
+          "type": "string",
+          "default": "wolf_image",
+          "description": "Directory to store generated images (relative to the document)."
+        },
+        "wolftex.image.resolution": {
+          "type": "number",
+          "default": 150,
+          "description": "Resolution (DPI) for generated images."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",

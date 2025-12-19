@@ -5,20 +5,65 @@ import * as path from 'path';
 
 export type WolframEvaluationMode = 'plain' | 'latex';
 
+export interface WolframConfig {
+    wolframPath?: string;
+    imageDirectory?: string;
+    imageResolution?: number;
+}
+
 export class WolframKernelService {
     private process?: ChildProcess;
     private port?: number;
-    private initPromise: Promise<void>;
+    private initPromise: Promise<void> = Promise.resolve();
     private disposed = false;
     private outputChannel?: OutputChannel;
 
     private systemNames: string[] = [];
+    private currentEvaluationOutputs: string[] = [];
+    private isEvaluating: boolean = false;
 
-    constructor(extensionPath: string, outputChannel?: OutputChannel) {
+    // Configuration
+    private wolframPath: string = 'wolframscript';
+    private imageDirectory: string = 'wolf_image';
+    private imageResolution: number = 150;
+
+    private extensionPath: string;
+
+    constructor(extensionPath: string, outputChannel?: OutputChannel, config?: WolframConfig) {
         this.outputChannel = outputChannel;
-        this.initPromise = this.startKernel(extensionPath).then(() => {
+        this.extensionPath = extensionPath;
+        if (config) this.updateConfig(config, false);
+        this.initPromise = this.startKernel(this.extensionPath).then(() => {
             this.getSystemNames().catch(err => this.error(`Failed to fetch system names: ${err}`));
         });
+    }
+
+    /** Update configuration. If restartKernel is true and wolframPath changed, restart kernel. */
+    updateConfig(config: WolframConfig, restartKernel = true) {
+        const prevPath = this.wolframPath;
+        if (config.wolframPath) this.wolframPath = config.wolframPath;
+        if (config.imageDirectory) this.imageDirectory = config.imageDirectory;
+        if (typeof config.imageResolution === 'number') this.imageResolution = config.imageResolution;
+
+        if (restartKernel && config.wolframPath && config.wolframPath !== prevPath) {
+            // restart kernel with new executable
+            this.log(`Wolfram path changed from ${prevPath} to ${this.wolframPath}, restarting kernel.`);
+            this.restart().catch(err => this.error(`Failed to restart kernel: ${err}`));
+        }
+    }
+
+    /** Restart the kernel process. */
+    async restart(): Promise<void> {
+        try {
+            this.dispose();
+            this.disposed = false;
+            this.initPromise = this.startKernel(this.extensionPath);
+            await this.initPromise;
+            await this.getSystemNames();
+        } catch (e) {
+            this.error(`Restart failed: ${e}`);
+            throw e;
+        }
     }
 
     private log(message: string) {
@@ -42,7 +87,9 @@ export class WolframKernelService {
             const scriptPath = path.join(extensionPath, 'dist', 'kernel.wls');
             this.log(`Starting kernel server from: ${scriptPath}`);
 
-            this.process = spawn('wolframscript', ['-f', scriptPath], {
+            // Use configured wolframPath if provided
+            const execPath = this.wolframPath || 'wolframscript';
+            this.process = spawn(execPath, ['-f', scriptPath], {
                 stdio: ['ignore', 'pipe', 'pipe'],
                 env: { ...process.env, QT_QPA_PLATFORM: 'offscreen' }
             });
@@ -53,7 +100,13 @@ export class WolframKernelService {
             }
 
             this.process.stderr?.on('data', (data) => {
-                this.log(`STDERR: ${data.toString()}`);
+                const str = data.toString();
+                this.log(`STDERR: ${str}`);
+                if (this.isEvaluating) {
+                    // Split by newline to handle multiple lines in one chunk
+                    const lines = str.split(/\r?\n/);
+                    this.currentEvaluationOutputs.push(...lines);
+                }
             });
 
             this.process.on('error', (err) => {
@@ -74,6 +127,12 @@ export class WolframKernelService {
             this.process.stdout.on('data', (data: Buffer) => {
                 const str = data.toString();
                 this.log(`STDOUT: ${str.trim()}`);
+                
+                if (this.isEvaluating) {
+                    // Split by newline to handle multiple lines in one chunk
+                    const lines = str.split(/\r?\n/);
+                    this.currentEvaluationOutputs.push(...lines);
+                }
 
                 if (!portFound) {
                     stdoutBuffer += str;
@@ -167,7 +226,32 @@ export class WolframKernelService {
 
     async evaluate(code: string, mode: WolframEvaluationMode, cwd?: string, filename?: string): Promise<string> {
         this.log(`Evaluating: ${code.substring(0, 50)}...`);
-        return this.sendRequest({ type: 'evaluate', code, mode, cwd: cwd || '', filename: filename || '' });
+        this.isEvaluating = true;
+        this.currentEvaluationOutputs = [];
+        
+        try {
+            const result = await this.sendRequest({ type: 'evaluate', code, mode, cwd: cwd || '', filename: filename || '' });
+            
+            if (result === "Error: Evaluation failed") {
+                // Give a small grace period for stdout to flush to avoid race conditions
+                await new Promise(resolve => setTimeout(resolve, 100));
+
+                // Try to find a relevant error message in the outputs
+                // Filter out internal kernel logs
+                const errorMessages = this.currentEvaluationOutputs
+                    .map(s => s.trim())
+                    .filter(s => s.length > 0 && !s.startsWith('[Kernel]') && !s.startsWith('STDOUT:') && !s.startsWith('STDERR:'));
+                
+                if (errorMessages.length > 0) {
+                    // Join them or take the first one that looks like a message (contains ::)
+                    const specificError = errorMessages.find(s => s.includes('::')) || errorMessages[0];
+                    return `Error: ${specificError}`;
+                }
+            }
+            return result;
+        } finally {
+            this.isEvaluating = false;
+        }
     }
 
     dispose() {
