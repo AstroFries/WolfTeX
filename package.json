@@ -59,6 +59,21 @@
           "type": "number",
           "default": 150,
           "description": "Resolution (DPI) for generated images."
+        },
+        "wolftex.latexWrapper": {
+          "type": "string",
+          "enum": [
+            "none",
+            "inline",
+            "display"
+          ],
+          "default": "inline",
+          "description": "The wrapper to use for LaTeX output when the output doesn't already contain math delimiters. 'inline' uses $...$, 'display' uses \\[...\\], 'none' adds no wrapper."
+        },
+        "wolftex.debug": {
+          "type": "boolean",
+          "default": false,
+          "description": "When enabled, additional debug information (like execution time) will be appended as comments after each evaluation."
         }
       }
     }

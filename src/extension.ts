@@ -112,7 +112,10 @@ export function activate(context: vscode.ExtensionContext) {
 
         await evaluateLineWithWolfram(editor, {
             mode: 'latex',
-            formatOutput: (output, indentation, eol) => formatAsLatexBlock(output, indentation),
+            formatOutput: (output, indentation, eol) => {
+                const wrapper = vscode.workspace.getConfiguration('wolftex').get<string>('latexWrapper') || 'inline';
+                return formatAsLatexBlock(output, indentation, wrapper);
+            },
             successMessage: 'Wolfram LaTeX inserted.'
         });
     });
@@ -261,13 +264,11 @@ async function evaluateLineWithWolfram(editor: vscode.TextEditor, options?: Eval
 
     const document = editor.document;
     const eol = document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n';
-    const lineNumber = editor.selection.active.line;
-    const rawLineText = document.lineAt(lineNumber).text;
-    const indentation = rawLineText.match(/^\s*/)?.[0] ?? '';
-    const code = stripLeadingPercent(rawLineText);
-
-    if (!code) {
-        vscode.window.showWarningMessage('Current line is empty after removing %');
+    
+    // Get unique line numbers from all selections
+    const lineNumbers = Array.from(new Set(editor.selections.map(s => s.active.line))).sort((a, b) => a - b);
+    
+    if (lineNumbers.length === 0) {
         return;
     }
 
@@ -275,28 +276,79 @@ async function evaluateLineWithWolfram(editor: vscode.TextEditor, options?: Eval
     const filename = document.uri.scheme === 'file' ? path.basename(document.uri.fsPath) : undefined;
 
     try {
-        const result = await vscode.window.withProgress({
+        await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
-            title: "Wolfram Kernel: Evaluating...",
+            title: lineNumbers.length > 1 ? `Wolfram Kernel: Evaluating ${lineNumbers.length} lines...` : "Wolfram Kernel: Evaluating...",
             cancellable: false
-        }, async () => {
-            if (!kernelService) { throw new Error("Kernel service not initialized"); }
-            return await kernelService.evaluate(code, options?.mode ?? 'plain', cwd, filename);
-        });
-        
-        if (result.startsWith("Error:")) {
-            vscode.window.showErrorMessage("Wolfram Evaluation Failed: " + result.substring(6).trim());
-        }
+        }, async (progress) => {
+            const results: { lineNumber: number, text: string, lineCount: number }[] = [];
+            const isDebug = vscode.workspace.getConfiguration('wolftex').get<boolean>('debug') || false;
+            
+            for (let i = 0; i < lineNumbers.length; i++) {
+                const lineNumber = lineNumbers[i];
+                const rawLineText = document.lineAt(lineNumber).text;
+                const indentation = rawLineText.match(/^\s*/)?.[0] ?? '';
+                const code = stripLeadingPercent(rawLineText);
 
-        const formattedLines = options?.formatOutput
-            ? options.formatOutput(result, indentation, eol)
-            : formatAsComments(result, indentation);
+                if (!code) {
+                    continue;
+                }
 
-        const insertText = `${eol}${formattedLines.join(eol)}`;
+                if (lineNumbers.length > 1) {
+                    progress.report({ message: `Line ${lineNumber + 1}...`, increment: (1 / lineNumbers.length) * 100 });
+                }
 
-        await editor.edit(editBuilder => {
-            const insertPosition = document.lineAt(lineNumber).range.end;
-            editBuilder.insert(insertPosition, insertText);
+                const startTime = Date.now();
+                const result = await kernelService!.evaluate(code, options?.mode ?? 'plain', cwd, filename);
+                const duration = Date.now() - startTime;
+                
+                if (result.startsWith("Error:")) {
+                    vscode.window.showErrorMessage(`Line ${lineNumber + 1} Failed: ${result.substring(6).trim()}`);
+                }
+
+                let formattedLines = options?.formatOutput
+                    ? options.formatOutput(result, indentation, eol)
+                    : formatAsComments(result, indentation);
+
+                if (isDebug) {
+                    formattedLines.push(`${indentation}% [Debug] Execution time: ${duration}ms`);
+                }
+
+                results.push({
+                    lineNumber,
+                    text: `${eol}${formattedLines.join(eol)}`,
+                    lineCount: formattedLines.length
+                });
+            }
+
+            if (results.length > 0) {
+                await editor.edit(editBuilder => {
+                    for (const res of results) {
+                        const insertPosition = document.lineAt(res.lineNumber).range.end;
+                        editBuilder.insert(insertPosition, res.text);
+                    }
+                });
+
+                // Select the newly inserted lines
+                const newSelections: vscode.Selection[] = [];
+                let cumulativeOffset = 0;
+                for (const res of results) {
+                    if (res.lineCount > 0) {
+                        const startLine = res.lineNumber + cumulativeOffset + 1;
+                        const endLine = startLine + res.lineCount - 1;
+                        const lastLine = editor.document.lineAt(endLine);
+                        newSelections.push(new vscode.Selection(
+                            new vscode.Position(startLine, 0),
+                            lastLine.range.end
+                        ));
+                    }
+                    cumulativeOffset += res.lineCount;
+                }
+                
+                if (newSelections.length > 0) {
+                    editor.selections = newSelections;
+                }
+            }
         });
 
         if (options?.successMessage) {
@@ -315,10 +367,10 @@ function formatAsComments(output: string, indentation: string): string[] {
     return output.split(/\r?\n/).map(line => `${indentation}% ${line}`);
 }
 
-function formatAsLatexBlock(output: string, indentation: string, _eol?: string): string[] {
-    // 如果输出中已经包含 `$`，认为不需要再包裹 $$，直接以注释插入原始输出
-    if (output.includes('$')) {
-        return formatAsComments(output, indentation);
+function formatAsLatexBlock(output: string, indentation: string, wrapper: string = 'inline'): string[] {
+    // 如果输出中已经包含 `$` 或 `\[`，认为不需要再包裹，直接插入原始输出
+    if (output.includes('$') || output.includes('\\[') || wrapper === 'none') {
+        return output.split(/\r?\n/).map(line => `${indentation}${line}`);
     }
 
     const lines = output.split(/\r?\n/);
@@ -326,15 +378,18 @@ function formatAsLatexBlock(output: string, indentation: string, _eol?: string):
         return [];
     }
 
-    // 单行情况： % $ content $
+    const startDelim = wrapper === 'display' ? '\\[' : '$';
+    const endDelim = wrapper === 'display' ? '\\]' : '$';
+
+    // 单行情况
     if (lines.length === 1) {
-        return [`${indentation}% $ ${lines[0]} $`];
+        return [`${indentation}${startDelim} ${lines[0]} ${endDelim}`];
     }
     const result: string[] = [];
-    result.push(`${indentation}% $ ${lines[0]}`);
+    result.push(`${indentation}${startDelim} ${lines[0]}`);
     for (let i = 1; i < lines.length - 1; i++) {
-        result.push(`${indentation}% ${lines[i]}`);
+        result.push(`${indentation}${lines[i]}`);
     }
-    result.push(`${indentation}% ${lines[lines.length - 1]} $`);
+    result.push(`${indentation}${lines[lines.length - 1]} ${endDelim}`);
     return result;
 }
